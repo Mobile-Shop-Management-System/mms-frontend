@@ -2,6 +2,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+## API Configuration
+
+Copy `.env.example` to `.env` and set the backend URL:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+```
+
+For deployment, set `NEXT_PUBLIC_API_URL` to the public backend URL, including the `/api/v1` suffix. Restart or rebuild the Next.js application after changing it.
+
 First, run the development server:
 
 ```bash

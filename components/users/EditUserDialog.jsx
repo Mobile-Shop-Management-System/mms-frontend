@@ -13,19 +13,32 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { XCircle } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const ROLE_OPTIONS = [
-  { value: "admin", label: "Admin" },
-  { value: "user", label: "User" },
+  { value: "shop_admin", label: "Shop Admin" },
+  { value: "salesman", label: "Salesman" },
 ];
 
-export function EditUserDialog({ user, onClose, isProcessing, error, onConfirm, onErrorClose }) {
+export function EditUserDialog({
+  user,
+  onClose,
+  isProcessing,
+  error,
+  onConfirm,
+  onErrorClose,
+}) {
+  const { user: currentUser } = useAuth();
+  const isOwnSuperAdmin =
+    currentUser?.id === user.id &&
+    (currentUser?.effective_role === "super_admin" ||
+      currentUser?.is_superuser);
   const [formData, setFormData] = useState({
     first_name: user.first_name || "",
     last_name: user.last_name || "",
     email: user.email || "",
     phone: user.phone || "",
-    role: user.role || "cashier",
+    role: user.effective_role || user.role || "salesman",
     is_active: user.is_active ?? true,
   });
 
@@ -87,7 +100,9 @@ export function EditUserDialog({ user, onClose, isProcessing, error, onConfirm, 
         <div className="p-6 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Edit User</h2>
-            <p className="text-sm text-muted-foreground">Update user information</p>
+            <p className="text-sm text-muted-foreground">
+              Update user information
+            </p>
           </div>
 
           <div className="space-y-3">
@@ -152,7 +167,11 @@ export function EditUserDialog({ user, onClose, isProcessing, error, onConfirm, 
               <Label htmlFor="role" className="text-sm font-medium">
                 Role
               </Label>
-              <Select value={formData.role} onValueChange={handleRoleChange} disabled={isProcessing}>
+              <Select
+                value={formData.role}
+                onValueChange={handleRoleChange}
+                disabled={isProcessing || isOwnSuperAdmin}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -164,6 +183,11 @@ export function EditUserDialog({ user, onClose, isProcessing, error, onConfirm, 
                   ))}
                 </SelectContent>
               </Select>
+              {isOwnSuperAdmin && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Super Admin role cannot be changed from this account.
+                </p>
+              )}
             </div>
 
             <div>

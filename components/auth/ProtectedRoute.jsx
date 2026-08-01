@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -47,15 +48,44 @@ function DashboardSkeleton() {
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const role =
+    user?.effective_role ?? (user?.is_superuser ? "super_admin" : user?.role);
+  const isShopPage = pathname.startsWith("/dashboard/shops");
+  const isUsersPage = pathname.startsWith("/dashboard/users");
+  const isProfilePage = pathname.startsWith("/dashboard/profile");
+  const shouldRedirectSuperAdmin =
+    !loading &&
+    role === "super_admin" &&
+    !isShopPage &&
+    !isUsersPage &&
+    !isProfilePage;
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/auth/login");
     }
-  }, [user, loading, router]);
+    if (!loading && user) {
+      if (shouldRedirectSuperAdmin) {
+        router.replace("/dashboard/shops");
+      }
+      if (role !== "super_admin" && isShopPage) {
+        router.replace("/dashboard");
+      }
+    }
+  }, [
+    user,
+    loading,
+    pathname,
+    router,
+    role,
+    isShopPage,
+    shouldRedirectSuperAdmin,
+  ]);
 
   if (loading) return <DashboardSkeleton />;
   if (!user) return null;
+  if (shouldRedirectSuperAdmin) return <DashboardSkeleton />;
 
   return children;
 }

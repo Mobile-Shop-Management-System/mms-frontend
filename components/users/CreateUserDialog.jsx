@@ -5,6 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCreateUserMutation } from "@/hooks/useUsers";
+import { useShops } from "@/hooks/useShops";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +27,7 @@ import {
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, X, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 const createUserSchema = z.object({
   username: z
@@ -36,21 +39,24 @@ const createUserSchema = z.object({
   last_name: z.string().optional(),
   phone: z.string().optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["owner", "cashier", "stock_manager", "technician", "accountant"]),
+  role: z.enum(["shop_admin", "salesman"]),
 });
 
 const ROLES = [
-  { value: "owner", label: "Owner" },
-  { value: "cashier", label: "Cashier" },
-  { value: "stock_manager", label: "Stock Manager" },
-  { value: "technician", label: "Technician" },
-  { value: "accountant", label: "Accountant" },
+  { value: "shop_admin", label: "Shop Admin" },
+  { value: "salesman", label: "Salesman" },
 ];
 
 export function CreateUserDialog({ onClose }) {
+  const { user: currentUser } = useAuth();
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { mutate: createUser, isPending } = useCreateUserMutation();
+  const isSuperAdmin =
+    currentUser?.effective_role === "super_admin" || currentUser?.is_superuser;
+  const { data: shops = [], isLoading: shopsLoading } = useShops({
+    enabled: isSuperAdmin,
+  });
 
   const form = useForm({
     resolver: zodResolver(createUserSchema),
@@ -61,20 +67,29 @@ export function CreateUserDialog({ onClose }) {
       last_name: "",
       phone: "",
       password: "",
-      role: "cashier",
+      role: "salesman",
+      shop_id: "",
     },
   });
 
   function onSubmit(data) {
     setError("");
+    if (isSuperAdmin && !data.shop_id) {
+      const message = "Please select the shop for this user.";
+      form.setError("shop_id", { message });
+      toast.error(message);
+      return;
+    }
     createUser(data, {
       onSuccess: () => {
         form.reset();
+        toast.success("User created successfully.");
         onClose();
       },
       onError: (err) => {
         const msg = err?.response?.data?.message || "Failed to create user";
         setError(msg);
+        toast.error(msg);
       },
     });
   }
@@ -138,7 +153,9 @@ export function CreateUserDialog({ onClose }) {
                     <FormControl>
                       <Input placeholder="john_doe" {...field} />
                     </FormControl>
-                    <FormDescription>Letters, numbers, underscores only</FormDescription>
+                    <FormDescription>
+                      Letters, numbers, underscores only
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -151,7 +168,11 @@ export function CreateUserDialog({ onClose }) {
                   <FormItem>
                     <FormLabel>Email *</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="john@example.com" {...field} />
+                      <Input
+                        type="email"
+                        placeholder="john@example.com"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -233,13 +254,51 @@ export function CreateUserDialog({ onClose }) {
                 )}
               />
 
+              {isSuperAdmin && (
+                <FormField
+                  control={form.control}
+                  name="shop_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assign to Shop *</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={shopsLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                shopsLoading
+                                  ? "Loading shops..."
+                                  : "Select a shop"
+                              }
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {shops.map((shop) => (
+                            <SelectItem key={shop.id} value={String(shop.id)}>
+                              {shop.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        The user will appear under this shop's staff tree.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <div className="flex gap-2 pt-4">
-                <Button
-                  type="submit"
-                  className="flex-1"
-                  disabled={isPending}
-                >
-                  {isPending && <Loader2 className="size-4 mr-2 animate-spin" />}
+                <Button type="submit" className="flex-1" disabled={isPending}>
+                  {isPending && (
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                  )}
                   Create User
                 </Button>
                 <Button

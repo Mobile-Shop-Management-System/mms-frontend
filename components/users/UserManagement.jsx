@@ -35,7 +35,8 @@ export function UserManagement() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
         <p className="text-muted-foreground">
-          Create, edit, and manage system users. Admin controls access to all features.
+          Manage staff by shop. Each Shop Admin appears above their assigned
+          Salesmen.
         </p>
       </div>
 
@@ -63,17 +64,23 @@ export function UserManagement() {
       {!isLoading && users && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-card border border-border/40 rounded-lg p-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Users</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Total Users
+            </p>
             <p className="text-2xl font-bold mt-2">{users.length}</p>
           </div>
           <div className="bg-card border border-border/40 rounded-lg p-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Users</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Active Users
+            </p>
             <p className="text-2xl font-bold mt-2 text-green-500">
               {users.filter((u) => u.is_active).length}
             </p>
           </div>
           <div className="bg-card border border-border/40 rounded-lg p-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Inactive Users</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Inactive Users
+            </p>
             <p className="text-2xl font-bold mt-2 text-red-500">
               {users.filter((u) => !u.is_active).length}
             </p>

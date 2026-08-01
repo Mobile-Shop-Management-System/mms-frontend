@@ -73,6 +73,14 @@ export function Topbar() {
   const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const effectiveRole =
+    user?.effective_role ?? (user?.is_superuser ? "super_admin" : user?.role);
+  const visibleSections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => !item.roles || item.roles.includes(effectiveRole),
+    ),
+  })).filter((section) => section.items.length > 0);
 
   // Cache bust timestamp - only updates when avatar_url changes
   const avatarUrl = useMemo(() => {
@@ -96,9 +104,13 @@ export function Topbar() {
   return (
     <>
       <header className="sticky top-0 z-50 h-14 flex items-center border-b border-border/60 bg-background px-3 gap-1 shrink-0">
-
         {/* Mobile: hamburger */}
-        <Button variant="ghost" size="icon" className="lg:hidden text-muted-foreground" onClick={() => setMobileOpen(true)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden text-muted-foreground"
+          onClick={() => setMobileOpen(true)}
+        >
           <Menu className="size-4" />
         </Button>
 
@@ -109,10 +121,17 @@ export function Topbar() {
           className="hidden lg:flex text-muted-foreground hover:text-foreground"
           onClick={() => setCollapsed((c) => !c)}
         >
-          {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          {collapsed ? (
+            <PanelLeftOpen className="size-4" />
+          ) : (
+            <PanelLeftClose className="size-4" />
+          )}
         </Button>
 
-        <Separator orientation="vertical" className="h-5 mx-1 hidden lg:block" />
+        <Separator
+          orientation="vertical"
+          className="h-5 mx-1 hidden lg:block"
+        />
 
         {/* Breadcrumb */}
         <Breadcrumb className="flex-1">
@@ -127,7 +146,6 @@ export function Topbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-1">
-
           {/* Search — pill button */}
           <button
             onClick={() => setSearchOpen(true)}
@@ -139,12 +157,21 @@ export function Topbar() {
               ⌘K
             </kbd>
           </button>
-          <Button variant="ghost" size="icon" className="sm:hidden text-muted-foreground" onClick={() => setSearchOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sm:hidden text-muted-foreground"
+            onClick={() => setSearchOpen(true)}
+          >
             <Search className="size-4" />
           </Button>
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative text-muted-foreground hover:text-foreground"
+          >
             <Bell className="size-4" />
             <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-destructive ring-1 ring-background" />
           </Button>
@@ -156,7 +183,11 @@ export function Topbar() {
             className="text-muted-foreground hover:text-foreground"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            {mounted && theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            {mounted && theme === "dark" ? (
+              <Sun className="size-4" />
+            ) : (
+              <Moon className="size-4" />
+            )}
           </Button>
 
           <Separator orientation="vertical" className="h-5 mx-0.5" />
@@ -173,7 +204,7 @@ export function Topbar() {
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       // Fallback to initials if image fails to load
-                      e.target.style.display = 'none';
+                      e.target.style.display = "none";
                     }}
                   />
                 ) : (
@@ -183,7 +214,7 @@ export function Topbar() {
               <span className="hidden sm:block text-xs font-medium text-foreground max-w-24 truncate">
                 {user?.first_name && user?.last_name
                   ? `${user.first_name} ${user.last_name}`
-                  : user?.username ?? "Account"}
+                  : (user?.username ?? "Account")}
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
@@ -194,11 +225,15 @@ export function Topbar() {
                     : user?.username}
                 </p>
                 {user?.email && (
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user.email}
+                  </p>
                 )}
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+              <DropdownMenuItem
+                onClick={() => router.push("/dashboard/profile")}
+              >
                 <UserCircle className="size-3.5" />
                 Profile
               </DropdownMenuItem>
@@ -209,21 +244,28 @@ export function Topbar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
         </div>
       </header>
 
-      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen} title="Search" description="Search navigation items">
+      <CommandDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        title="Search"
+        description="Search navigation items"
+      >
         <Command>
           <CommandInput placeholder="Search pages..." />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
-            {NAV_SECTIONS.map((section) => (
+            {visibleSections.map((section) => (
               <CommandGroup key={section.label} heading={section.label}>
                 {section.items.map((item) => (
                   <CommandItem
                     key={item.href}
-                    onSelect={() => { setSearchOpen(false); window.location.href = item.href; }}
+                    onSelect={() => {
+                      setSearchOpen(false);
+                      window.location.href = item.href;
+                    }}
                   >
                     <item.icon className="size-4 mr-2" />
                     {item.label}

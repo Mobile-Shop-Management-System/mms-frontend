@@ -11,13 +11,25 @@ export default function UsersPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  if (!user?.is_superuser) {
+  const role =
+    user?.effective_role ?? (user?.is_superuser ? "super_admin" : user?.role);
+  const canManageUsers = role === "super_admin" || role === "shop_admin";
+
+  if (!canManageUsers) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p className="text-muted-foreground mb-6">Only superusers can manage users.</p>
-          <Button onClick={() => router.push("/dashboard")}>
+          <p className="text-muted-foreground mb-6">
+            Only Super Admins and Shop Admins can manage users.
+          </p>
+          <Button
+            onClick={() =>
+              router.push(
+                role === "super_admin" ? "/dashboard/shops" : "/dashboard",
+              )
+            }
+          >
             Return to Dashboard
           </Button>
         </div>

@@ -4,7 +4,8 @@ import auth from "@/lib/api/auth";
 export function useUsersList(params = {}) {
   return useQuery({
     queryKey: ["users", params],
-    queryFn: () => auth.listUsers(params).then((r) => r.data.data.results || []),
+    queryFn: () =>
+      auth.listUsers(params).then((r) => r.data.data.results || []),
   });
 }
 
@@ -21,7 +22,7 @@ export function useCreateUserMutation() {
   return useMutation({
     mutationFn: (data) => auth.createUser(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.refetchQueries({ queryKey: ["users"] });
     },
   });
 }
@@ -31,8 +32,8 @@ export function useUpdateUserMutation() {
   return useMutation({
     mutationFn: ({ id, data }) => auth.updateUser(id, data),
     onSuccess: (res, { id }) => {
-      qc.invalidateQueries({ queryKey: ["users"] });
-      qc.invalidateQueries({ queryKey: ["users", "detail", id] });
+      qc.refetchQueries({ queryKey: ["users"] });
+      qc.refetchQueries({ queryKey: ["users", "detail", id] });
     },
   });
 }
@@ -42,7 +43,7 @@ export function useDeleteUserMutation() {
   return useMutation({
     mutationFn: (id) => auth.deleteUser(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.refetchQueries({ queryKey: ["users"] });
     },
     onError: (error) => {
       console.error("Delete user error:", error);
