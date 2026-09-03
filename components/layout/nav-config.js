@@ -32,6 +32,12 @@ export const NAV_SECTIONS = [
         icon: ShoppingCart,
         roles: ["shop_admin", "salesman"],
       },
+      {
+        href: "/dashboard/customers",
+        label: "Customers",
+        icon: Users,
+        roles: ["shop_admin", "salesman"],
+      },
     ],
   },
   {

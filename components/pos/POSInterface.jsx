@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import {
   Search,
   Plus,
@@ -17,6 +18,9 @@ import {
   StickyNote,
   Wallet,
   ScanLine,
+  ChevronDown,
+  Check,
+  UserRoundPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useItemDropdown } from "@/hooks/useItems";
 import { useCreateSaleMutation } from "@/hooks/useSales";
+import { useCustomerDropdown } from "@/hooks/useCustomers";
 import { printReceipt } from "@/lib/printReceipt";
 
 const PAYMENT_METHODS = [
@@ -47,6 +52,16 @@ const PAYMENT_METHODS = [
   { value: "jazzcash", label: "JazzCash" },
   { value: "bank_transfer", label: "Bank Transfer" },
 ];
+
+const BACKEND_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"
+).replace(/\/api\/v1\/?$/, "");
+
+function resolveImageUrl(src) {
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src)) return src;
+  return `${BACKEND_URL}${src.startsWith("/") ? src : `/${src}`}`;
+}
 
 /** Format a number as PKR currency. */
 function fmtPKR(n) {
@@ -69,6 +84,97 @@ function SectionLabel({ icon: Icon, children }) {
 const inputBase =
   "w-full h-9 rounded-lg border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring transition-colors";
 
+function CustomerPicker({ customers, value, onChange, loading, error }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const selected = customers.find((customer) => String(customer.id) === value);
+  const filtered = customers.filter((customer) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    return `${customer.full_name} ${customer.phone}`
+      .toLowerCase()
+      .includes(query);
+  });
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        disabled={loading}
+        className={cn(
+          inputBase,
+          "flex items-center justify-between gap-2 text-left",
+          error ? "border-destructive" : "border-input",
+        )}
+      >
+        <span
+          className={cn("truncate", !selected && "text-muted-foreground/70")}
+        >
+          {loading
+            ? "Loading customers..."
+            : selected
+              ? `${selected.full_name} · ${selected.phone}`
+              : "Search and select customer *"}
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {open && !loading && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
+          <div className="relative border-b border-border/60 p-2">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => event.key === "Escape" && setOpen(false)}
+              placeholder="Search name or phone..."
+              className="h-8 w-full rounded-lg bg-muted/50 pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </div>
+          <div role="listbox" className="max-h-52 overflow-y-auto p-1.5">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-5 text-center text-xs text-muted-foreground">
+                No matching customers.
+              </p>
+            ) : (
+              filtered.map((customer) => (
+                <button
+                  key={customer.id}
+                  type="button"
+                  role="option"
+                  aria-selected={String(customer.id) === value}
+                  onClick={() => {
+                    onChange(String(customer.id));
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-muted"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">
+                      {customer.full_name}
+                    </span>
+                    <span className="block truncate text-muted-foreground">
+                      {customer.phone}
+                    </span>
+                  </span>
+                  {String(customer.id) === value && (
+                    <Check className="size-4 text-primary" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemCard({ item, onAdd }) {
   const outOfStock = item.quantity_in_stock <= 0;
   const lowStock = !outOfStock && item.quantity_in_stock <= 5;
@@ -76,6 +182,7 @@ function ItemCard({ item, onAdd }) {
     item.images?.find((img) => img.is_primary)?.image ??
     item.images?.[0]?.image ??
     null;
+  const imageUrl = resolveImageUrl(image);
 
   return (
     <button
@@ -90,9 +197,9 @@ function ItemCard({ item, onAdd }) {
     >
       {/* Thumbnail */}
       <div className="relative aspect-4/3 w-full overflow-hidden bg-muted/40">
-        {image ? (
+        {imageUrl ? (
           <img
-            src={image}
+            src={imageUrl}
             alt={item.name}
             loading="lazy"
             className={cn(
@@ -154,6 +261,11 @@ function ItemCard({ item, onAdd }) {
         <p className="truncate text-[11px] text-muted-foreground">
           {item.category_name || item.brand_name || "Uncategorized"}
         </p>
+        {item.barcode && (
+          <p className="truncate font-mono text-[10px] text-muted-foreground/80">
+            {item.barcode}
+          </p>
+        )}
         <p className="mt-auto pt-1.5 text-sm font-bold tabular-nums text-foreground">
           {fmtPKR(item.selling_price)}
         </p>
@@ -433,9 +545,13 @@ function ReceiptDialog({ open, onOpenChange, receiptData, onNewSale }) {
 export function POSInterface() {
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [customerMode, setCustomerMode] = useState("saved");
+  const [temporaryCustomer, setTemporaryCustomer] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discount, setDiscount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
@@ -443,10 +559,15 @@ export function POSInterface() {
   const [receiptData, setReceiptData] = useState(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [variantPickerItem, setVariantPickerItem] = useState(null);
-  const [errors, setErrors] = useState({ customerName: "", customerPhone: "" });
+  const [customerErrors, setCustomerErrors] = useState({});
 
   const { data: allItems = [], isLoading: itemsLoading } = useItemDropdown();
+  const { data: customers = [], isLoading: customersLoading } =
+    useCustomerDropdown();
   const { mutate: createSale, isPending: submitting } = useCreateSaleMutation();
+  const selectedCustomer = customers.find(
+    (customer) => String(customer.id) === customerId,
+  );
 
   const filteredItems = useMemo(() => {
     if (!itemSearch.trim()) return allItems;
@@ -454,6 +575,8 @@ export function POSInterface() {
     return allItems.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
+        (item.barcode ?? "").toLowerCase().includes(q) ||
+        (item.brand_name ?? "").toLowerCase().includes(q) ||
         (item.category_name ?? "").toLowerCase().includes(q),
     );
   }, [allItems, itemSearch]);
@@ -464,6 +587,29 @@ export function POSInterface() {
       return;
     }
     addItemToCart(item, null);
+  };
+
+  const handleItemSearchKeyDown = (event) => {
+    if (event.key !== "Enter") return;
+    const scannedBarcode = itemSearch.trim();
+    if (!scannedBarcode) return;
+
+    const matchedItem = allItems.find(
+      (item) =>
+        item.barcode &&
+        item.barcode.toLowerCase() === scannedBarcode.toLowerCase(),
+    );
+    if (!matchedItem) {
+      toast.error(`No item found for barcode ${scannedBarcode}.`);
+      return;
+    }
+
+    event.preventDefault();
+    addToCart(matchedItem);
+    setItemSearch("");
+    if (!matchedItem.variants?.length) {
+      toast.success(`${matchedItem.name} added to cart.`);
+    }
   };
 
   const addItemToCart = (item, variant) => {
@@ -518,27 +664,27 @@ export function POSInterface() {
   const total = Math.max(0, subtotal - discountNum);
 
   const handleCompleteSale = () => {
-    const newErrors = { customerName: "", customerPhone: "" };
-
     if (cart.length === 0) {
       toast.error("Add at least one item to the cart.");
       return;
     }
 
-    if (!customerName.trim()) {
-      newErrors.customerName = "Customer name is required";
-    }
-
-    if (!customerPhone.trim()) {
-      newErrors.customerPhone = "Phone number is required.";
-    }
-
-    if (newErrors.customerName || newErrors.customerPhone) {
-      setErrors(newErrors);
+    if (customerMode === "saved" && !selectedCustomer) {
+      setCustomerErrors({ customer: "Select a saved customer." });
       return;
     }
-
-    setErrors({ customerName: "", customerPhone: "" });
+    if (customerMode === "temporary") {
+      const temporaryErrors = {};
+      if (!temporaryCustomer.name.trim())
+        temporaryErrors.name = "Name is required.";
+      if (!temporaryCustomer.phone.trim())
+        temporaryErrors.phone = "Phone is required.";
+      if (Object.keys(temporaryErrors).length) {
+        setCustomerErrors(temporaryErrors);
+        return;
+      }
+    }
+    setCustomerErrors({});
 
     const paidNum = paidAmount ? Number(paidAmount) : total;
     if (paidNum < 0) {
@@ -547,9 +693,20 @@ export function POSInterface() {
     }
 
     const payload = {
-      ...(customerName && { customer_name: customerName }),
-      customer_phone: customerPhone.trim(),
-      ...(customerAddress && { customer_address: customerAddress }),
+      ...(customerMode === "saved"
+        ? {
+            customer_id: selectedCustomer.id,
+            ...(selectedCustomer.address && {
+              customer_address: selectedCustomer.address,
+            }),
+          }
+        : {
+            customer_name: temporaryCustomer.name.trim(),
+            customer_phone: temporaryCustomer.phone.trim(),
+            ...(temporaryCustomer.address.trim() && {
+              customer_address: temporaryCustomer.address.trim(),
+            }),
+          }),
       items: cart.map((e) => ({
         item_id: e.item_id,
         variant_id: e.variant_id,
@@ -577,9 +734,10 @@ export function POSInterface() {
 
   const handleNewSale = () => {
     setCart([]);
-    setCustomerName("");
-    setCustomerPhone("");
-    setCustomerAddress("");
+    setCustomerId("");
+    setCustomerMode("saved");
+    setTemporaryCustomer({ name: "", phone: "", address: "" });
+    setCustomerErrors({});
     setPaymentMethod("cash");
     setDiscount("");
     setPaidAmount("");
@@ -617,9 +775,11 @@ export function POSInterface() {
             <div className="relative mt-4">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                placeholder="Search by name, brand or category…"
+                autoFocus
+                placeholder="Search name, brand, category or scan barcode…"
                 value={itemSearch}
                 onChange={(e) => setItemSearch(e.target.value)}
+                onKeyDown={handleItemSearchKeyDown}
                 className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/40"
               />
               {itemSearch && (
@@ -652,7 +812,7 @@ export function POSInterface() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {itemSearch
-                      ? "Try a different name, brand or category."
+                      ? "Try a different name, brand, category or barcode."
                       : "Add items to your inventory to start selling."}
                   </p>
                 </div>
@@ -746,58 +906,153 @@ export function POSInterface() {
             {/* Customer */}
             <div className="space-y-2.5">
               <SectionLabel icon={User}>Customer</SectionLabel>
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1">
-                  <input
-                    value={customerName}
-                    onChange={(e) => {
-                      setCustomerName(e.target.value);
-                      if (errors.customerName)
-                        setErrors({ ...errors, customerName: "" });
-                    }}
-                    placeholder="Name *"
-                    className={cn(
-                      inputBase,
-                      errors.customerName
-                        ? "border-destructive focus:border-destructive focus:ring-destructive/40"
-                        : "border-input",
-                    )}
-                  />
-                  {errors.customerName && (
-                    <p className="text-[11px] font-medium text-destructive">
-                      {errors.customerName}
-                    </p>
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerMode("saved");
+                    setCustomerErrors({});
+                  }}
+                  className={cn(
+                    "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                    customerMode === "saved"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
-                </div>
-                <div className="space-y-1">
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => {
-                      setCustomerPhone(e.target.value);
-                      if (errors.customerPhone)
-                        setErrors({ ...errors, customerPhone: "" });
-                    }}
-                    placeholder="Phone *"
-                    className={cn(
-                      inputBase,
-                      errors.customerPhone
-                        ? "border-destructive focus:border-destructive focus:ring-destructive/40"
-                        : "border-input",
-                    )}
-                  />
-                  {errors.customerPhone && (
-                    <p className="text-[11px] font-medium text-destructive">
-                      {errors.customerPhone}
-                    </p>
+                >
+                  Saved customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerMode("temporary");
+                    setCustomerErrors({});
+                  }}
+                  className={cn(
+                    "flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                    customerMode === "temporary"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
-                </div>
+                >
+                  <UserRoundPlus className="size-3" /> Temporary
+                </button>
               </div>
-              <input
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                placeholder="Address (optional)"
-                className={cn(inputBase, "border-input")}
-              />
+
+              {customerMode === "saved" ? (
+                <>
+                  <CustomerPicker
+                    customers={customers}
+                    value={customerId}
+                    onChange={(value) => {
+                      setCustomerId(value);
+                      setCustomerErrors({});
+                    }}
+                    loading={customersLoading}
+                    error={customerErrors.customer}
+                  />
+                  {customerErrors.customer && (
+                    <p className="text-[11px] font-medium text-destructive">
+                      {customerErrors.customer}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <input
+                        value={temporaryCustomer.name}
+                        onChange={(event) => {
+                          setTemporaryCustomer((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }));
+                          setCustomerErrors((current) => ({
+                            ...current,
+                            name: undefined,
+                          }));
+                        }}
+                        placeholder="Name *"
+                        className={cn(
+                          inputBase,
+                          customerErrors.name
+                            ? "border-destructive"
+                            : "border-input",
+                        )}
+                      />
+                      {customerErrors.name && (
+                        <p className="mt-1 text-[11px] text-destructive">
+                          {customerErrors.name}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        value={temporaryCustomer.phone}
+                        onChange={(event) => {
+                          setTemporaryCustomer((current) => ({
+                            ...current,
+                            phone: event.target.value,
+                          }));
+                          setCustomerErrors((current) => ({
+                            ...current,
+                            phone: undefined,
+                          }));
+                        }}
+                        placeholder="Phone *"
+                        className={cn(
+                          inputBase,
+                          customerErrors.phone
+                            ? "border-destructive"
+                            : "border-input",
+                        )}
+                      />
+                      {customerErrors.phone && (
+                        <p className="mt-1 text-[11px] text-destructive">
+                          {customerErrors.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    value={temporaryCustomer.address}
+                    onChange={(event) =>
+                      setTemporaryCustomer((current) => ({
+                        ...current,
+                        address: event.target.value,
+                      }))
+                    }
+                    placeholder="Address (optional)"
+                    className={cn(inputBase, "border-input")}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Used for this sale only. It will not be saved to Customers.
+                  </p>
+                </div>
+              )}
+
+              {customerMode === "saved" && selectedCustomer ? (
+                <div className="rounded-lg border border-border/60 bg-background px-3 py-2 text-xs">
+                  <p className="font-medium">{selectedCustomer.phone}</p>
+                  <p className="mt-0.5 truncate text-muted-foreground">
+                    {selectedCustomer.address ||
+                      selectedCustomer.city ||
+                      "No address saved"}
+                  </p>
+                </div>
+              ) : customerMode === "saved" ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Customer not listed?{" "}
+                  <Link
+                    href="/dashboard/customers"
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    Add one on the Customers page
+                  </Link>
+                  , or use Temporary.
+                </p>
+              ) : null}
             </div>
 
             {/* Payment */}
